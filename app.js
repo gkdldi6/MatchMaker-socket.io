@@ -1,4 +1,16 @@
 var io = require('socket.io')(3000);
+var mysql = require('mysql');
+
+var db = mysql.createConnection({
+  host: 'localhost',
+  user: 'root',
+  password: '1234',
+  database: 'matchmaker'
+})
+
+db.connect(function(err) {
+  if (err) console.log(err);
+});
 
 var users = [];
 var rooms = [];
