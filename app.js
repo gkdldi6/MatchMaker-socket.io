@@ -3,6 +3,7 @@ var mysql = require('mysql');
 
 var db = mysql.createConnection({
   host: 'localhost',
+  port: 3306,
   user: 'root',
   password: '1234',
   database: 'matchmaker'
@@ -11,6 +12,19 @@ var db = mysql.createConnection({
 db.connect(function(err) {
   if (err) console.log(err);
 });
+
+// db.query('insert into test values()');
+// db.query('insert into test(test1) values(?)', 'hello');
+db.query('insert into test(test1, test2, test3, test4) values(?, ?, ?, ?)', ['1', '2', '3', '4']);
+
+db.query('select * from test').on('result', function(data) {
+  console.log(data);
+}).on('end', function() {
+  console.log('end');
+});
+
+db.end();
+
 
 var users = [];
 var rooms = [];
