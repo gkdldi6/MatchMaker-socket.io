@@ -1,34 +1,18 @@
 var io = require('socket.io')(3000);
 var mysql = require('mysql');
 
-var db = mysql.createConnection({
-  host: 'localhost',
-  port: 3306,
-  user: 'root',
-  password: '1234',
-  database: 'matchmaker'
-})
-
-db.connect(function(err) {
-  if (err) console.log(err);
+var pool  = mysql.createPool({
+  connectionLimit : 10,
+  host            : 'localhost',
+  user            : 'root',
+  password        : '1234',
+  database        : 'matchmaker'
 });
-
-// db.query('insert into test values()');
-// db.query('insert into test(test1) values(?)', 'hello');
-db.query('insert into test(test1, test2, test3, test4) values(?, ?, ?, ?)', ['1', '2', '3', '4']);
-
-db.query('select * from test').on('result', function(data) {
-  console.log(data);
-}).on('end', function() {
-  console.log('end');
-});
-
-db.end();
-
 
 var users = [];
 var rooms = [];
 
+var mno = 0;
 var rno = 0;
 var waitroom = {
   roomno: 'waitroom',
@@ -45,11 +29,14 @@ function User(sid, uid, name, roomno) {
 };
 
 // 방번호, 방이름, 최대 유저수, 방에 있는 유저들
-function Room(roomno, rname, usercnt, userid) {
+function Room(roomno, rname, usercnt, userid, begintime, endtime, cno) {
   this.roomno = roomno;
   this.rname = rname;
   this.usercnt = usercnt;
   this.leader = userid;
+  this.begintime = begintime;
+  this.endtime = endtime;
+  this.cno = cno;
   rno++;
 };
 
@@ -203,13 +190,14 @@ io.on('connection', function (socket) {
       return;
     }
 
-    var room = new Room(rno, msg.rname, msg.usercnt, msg.userid);
+    var room = new Room(rno, msg.rname, msg.usercnt, msg.userid, msg.begintime, msg.endtime, msg.cno);
     rooms.unshift(room);
 
     changeRoom(socket, waitroom, room, user);
 
     io.in('waitroom').emit('createRoom', new Array(room));
     socket.emit('join', room);
+    socket.emit('leader');
   });
 
   // 방 참여하기
@@ -272,7 +260,35 @@ io.on('connection', function (socket) {
     io.in(user.roomno).emit('teamChange', user);
   });
 
+  // 방 예약하기
+  socket.on('reserve', function(roomno) {
+    var room = rooms[roomIndex(roomno)];
+    var rusers = usersInRoom(roomno);
+    console.log(rusers);
 
+    var query = new Array(mno, new Date(room.begintime), new Date(room.endtime), room.cno);
+    console.log(query);
+
+    pool.getConnection(function(err, connection) {
+      if (err) throw err;
+
+      connection.query('insert into match_court(mno, begintime, endtime, cno) values(?, ?, ?, ?)', query, function(err, rows) {
+        if (err) throw err;
+        console.log(rows.affectedRows);
+        connection.release();
+        mno++;
+      });
+
+      // query = [mno, ]
+      // connection.query('insert into match_player(mno, id, team, role, state) values(?, ?, ?, ?, ?)', query, function(err, rows) {
+      //   if (err) throw err;
+      //   connection.release();
+      // });
+
+      console.log('connection end');
+      socket.emit('reserve');
+    });
+  });
 
 
 
