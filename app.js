@@ -13,6 +13,17 @@ var users = [];
 var rooms = [];
 
 var mno = 0;
+pool.getConnection(function(err, connection) {
+  if(err) throw err;
+  connection.query('select mno from match_court order by mno desc limit 1', function(err, rows) {
+    if(err) throw err;
+    if(!rows[0]) { return; }
+    console.log('last match no: ' + rows[0].mno);
+    mno = rows[0].mno + 1;
+  });
+  connection.release();
+});
+
 var rno = 0;
 var waitroom = {
   roomno: 'waitroom',
@@ -264,29 +275,26 @@ io.on('connection', function (socket) {
   socket.on('reserve', function(roomno) {
     var room = rooms[roomIndex(roomno)];
     var rusers = usersInRoom(roomno);
-    console.log(rusers);
 
     var query = new Array(mno, new Date(room.begintime), new Date(room.endtime), room.cno);
-    console.log(query);
 
     pool.getConnection(function(err, connection) {
       if (err) throw err;
 
       connection.query('insert into match_court(mno, begintime, endtime, cno) values(?, ?, ?, ?)', query, function(err, rows) {
         if (err) throw err;
-        console.log(rows.affectedRows);
-        connection.release();
-        mno++;
       });
 
-      // query = [mno, ]
-      // connection.query('insert into match_player(mno, id, team, role, state) values(?, ?, ?, ?, ?)', query, function(err, rows) {
-      //   if (err) throw err;
-      //   connection.release();
-      // });
+      for(i in rusers) {
+        query = new Array(mno, rusers[i].uid, rusers[i].team);
+        connection.query('insert into match_player(mno, id, team) values(?, ?, ?)', query, function(err, rows) {
+          if (err) throw err;
+        });
+      }
 
-      console.log('connection end');
-      socket.emit('reserve');
+      mno++;
+      connection.release();
+      io.in(room.roomno).emit('reserve');
     });
   });
 
