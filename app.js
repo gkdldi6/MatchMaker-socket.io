@@ -276,12 +276,12 @@ io.on('connection', function (socket) {
     var room = rooms[roomIndex(roomno)];
     var rusers = usersInRoom(roomno);
 
-    var query = new Array(mno, new Date(room.begintime), new Date(room.endtime), room.cno);
+    var query = new Array(mno, room.rname, new Date(room.begintime), new Date(room.endtime), room.cno);
 
     pool.getConnection(function(err, connection) {
       if (err) throw err;
 
-      connection.query('insert into match_court(mno, begintime, endtime, cno) values(?, ?, ?, ?)', query, function(err, rows) {
+      connection.query('insert into match_court(mno, mname, begintime, endtime, cno) values(?, ?, ?, ?, ?)', query, function(err, rows) {
         if (err) throw err;
       });
 
