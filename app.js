@@ -298,8 +298,79 @@ io.on('connection', function (socket) {
     });
   });
 
+  // 모든 방을 반환: refresh
+  socket.on('getRooms', function() {
+    socket.emit('roomlist', rooms);
+  });
 
+  // 해당하는 이름이 포함된 방 배열을 반환
+  socket.on('searchRname', function(rname) {
+    var searchResult = new Array();
+    for(i in rooms) {
+      if(rooms[i].rname.indexOf(rname) !== -1) {
+        searchResult.push(rooms[i]);
+      }
+    }
+    socket.emit('roomlist', searchResult);
+  });
 
+  // 회원이 들어가있는 방 배열을 반환
+  socket.on('searchRuser', function(ruser) {
+    var user = target(ruser);
+    if(!user) {
+      console.log(ruser + '가 접속하지 않았습니다.')
+      return;
+    }
+    var roomno = user.roomno;
+    if(roomno === 'waitroom') {
+      console.log('대기실에 접속해 있습니다.');
+      return;
+    }
+    console.log('roomno: ' + roomno);
+    console.log('ruser: ' + ruser);
+    console.log([rooms[roomIndex(roomno)]]);
+    socket.emit('roomlist', [rooms[roomIndex(roomno)]]);
+  });
 
+  // 해당하는 코트를 사용하는 방 배열을 반환
+  socket.on('searchCno', function(cno) {
+    var searchResult = new Array();
+    for(i in rooms) {
+      if(rooms[i].cno == cno) {
+        searchResult.push(rooms[i]);
+      }
+    }
+    console.log('cno: ' + cno);
+    console.log(searchResult);
+    socket.emit('roomlist', searchResult);
+  });
+
+  // 1:1, 2:2, 3:3 등 게임 종류에 맞는 방 배열을 반환
+  socket.on('searchUsercnt', function(usercnt) {
+    var searchResult = new Array();
+
+    for(i in rooms) {
+      if(rooms[i].usercnt == usercnt) {
+        searchResult.push(rooms[i]);
+      }
+    }
+    console.log('usercnt: ' + usercnt);
+    console.log(searchResult);
+    socket.emit('roomlist', searchResult);
+  });
+
+  // 해당하는 기간에 게임을 만드려는 방 배열을 반환
+  socket.on('searchTime', function(time) {
+    var searchResult = new Array();
+    var begintime = new Date(time.begintime);
+    var endtime = new Date(time.endtime);
+
+    for(i in rooms) {
+      if(rooms[i].begintime > time.begintime && rooms[i].endtime < time.endtime) {
+        searchResult.push(rooms[i]);
+      }
+    }
+    socket.emit('roomlist', searchResult);
+  });
 
 });
