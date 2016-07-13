@@ -37,6 +37,7 @@ function User(sid, uid, name, roomno) {
   this.name = name;
   this.roomno = roomno;
   this.team;
+  this.leader;
 };
 
 // 방번호, 방이름, 최대 유저수, 방에 있는 유저들
@@ -75,8 +76,8 @@ function changeRoom(socket, exitroom, enterroom, user) {
   user.roomno = enterroom.roomno;
 
   socket.broadcast.in(exitroom.roomno).emit('exitroom', user);
-  io.in(exitroom.roomno).emit('message', user.name + '(' + user.uid + ')' + '님이 ' + exitroom.rname + '을 나갔습니다.');
-  io.in(enterroom.roomno).emit('message', user.name + '(' + user.uid + ')' + '님이 ' + enterroom.rname + '에 접속했습니다.');
+  io.in(exitroom.roomno).emit('callout', { id: user.uid, name: user.name, msg: '님이 ' + exitroom.rname + '을 나갔습니다.', class: 'callout-warning' } );
+  io.in(enterroom.roomno).emit('callout', { id: user.uid, name: user.name, msg: '님이 ' + enterroom.rname + '에 접속했습니다.', class: 'callout-success' } );
 
   var rusers = usersInRoom(enterroom.roomno);
   if(enterroom.roomno === 'waitroom') {
@@ -158,7 +159,8 @@ io.on('connection', function (socket) {
     socket.broadcast.in('waitroom').emit('enterroom', user);
     socket.emit('userlist', rusers);
     socket.emit('roomlist', rooms);
-    io.in('waitroom').emit('message', user.name + '(' + user.uid + ')' + '님이 대기실에 접속했습니다.');
+
+    io.in('waitroom').emit('callout', { id: user.uid, name: user.name, msg: '님이 대기실에 접속했습니다.', class: 'callout-info' });
   });
 
   // 회원 객체를 배열에서 삭제, 회원 갱신, 아웃 메시지 전송
@@ -171,7 +173,8 @@ io.on('connection', function (socket) {
       var room = user.roomno;
       var rusers = usersInRoom(room);
       io.in(room).emit('userlist', rusers);
-      io.in(room).emit('message', user.name + '(' + user.uid + ')' + '님이 접속을 끊었습니다.');
+
+      io.in(room).emit('callout', { id: user.uid, name: user.name, msg: '님이 접속을 끊었습니다.', class: 'callout-danger' });
     }
   });
 
@@ -189,8 +192,10 @@ io.on('connection', function (socket) {
   // 전체 수신 메시지
   socket.on('message', function(msg) {
     var user = target(msg.id);
+    var message = { id: user.uid, name: user.name, msg: msg.msg };
 
-    io.in(user.roomno).emit('message', user.name + '(' + user.uid + '): ' + msg.msg);
+    socket.emit('myMsg', message);
+    socket.broadcast.in(user.roomno).emit('message', message);
   });
 
   // 방 만들기
@@ -204,11 +209,12 @@ io.on('connection', function (socket) {
     var room = new Room(rno, msg.rname, msg.usercnt, msg.userid, msg.begintime, msg.endtime, msg.cno);
     rooms.unshift(room);
 
-    changeRoom(socket, waitroom, room, user);
-
     io.in('waitroom').emit('createRoom', new Array(room));
     socket.emit('join', room);
     socket.emit('leader');
+    user.leader = '방장';
+
+    changeRoom(socket, waitroom, room, user);
   });
 
   // 방 참여하기
@@ -224,9 +230,9 @@ io.on('connection', function (socket) {
     var ruserscnt = usersInRoom(msg.rno).length;
 
     if(ruserscnt < room.usercnt) {
-      changeRoom(socket, waitroom, room, user);
-
       socket.emit('join', room);
+
+      changeRoom(socket, waitroom, room, user);
     } else {
       socket.emit('alert', '방이 꽉찼습니다.');
     }
@@ -235,6 +241,7 @@ io.on('connection', function (socket) {
   // 방 나가기
   socket.on('exit', function(room, id) {
     var user = target(id);
+    user.leader = null;
 
     changeRoom(socket, room, waitroom, user);
 
@@ -275,6 +282,11 @@ io.on('connection', function (socket) {
   socket.on('reserve', function(roomno) {
     var room = rooms[roomIndex(roomno)];
     var rusers = usersInRoom(roomno);
+
+    if(usersWithTeam(rusers, 'home').length !== usersWithTeam(rusers, 'away').length) {
+      socket.emit('alert', '팀원수가 같지 않습니다.');
+      return;
+    }
 
     var query = new Array(mno, room.rname, new Date(room.begintime), new Date(room.endtime), room.cno);
 
